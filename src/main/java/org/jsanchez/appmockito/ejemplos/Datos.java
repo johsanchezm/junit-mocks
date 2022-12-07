@@ -1,4 +1,4 @@
-package org.jsanchez.appmockito.ejemplos.services;
+package org.jsanchez.appmockito.ejemplos;
 
 import org.jsanchez.appmockito.ejemplos.models.Examen;
 import org.mockito.internal.matchers.Null;

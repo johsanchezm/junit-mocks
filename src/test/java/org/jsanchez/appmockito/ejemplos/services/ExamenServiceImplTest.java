@@ -1,8 +1,11 @@
 package org.jsanchez.appmockito.ejemplos.services;
 
+import org.jsanchez.appmockito.ejemplos.Datos;
 import org.jsanchez.appmockito.ejemplos.models.Examen;
 import org.jsanchez.appmockito.ejemplos.repositories.ExamenRepository;
 import org.jsanchez.appmockito.ejemplos.repositories.PreguntaRepository;
+import org.jsanchez.appmockito.ejemplos.repositories.impl.ExamenRepositoryImpl;
+import org.jsanchez.appmockito.ejemplos.repositories.impl.PreguntaRepositoryImpl;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -20,10 +23,10 @@ import static org.mockito.Mockito.*;
 @ExtendWith(MockitoExtension.class) //con esto hace inidica el los mocks van por injección de dependencias en otra palabras no se tendría que usar el método setUp.
 class ExamenServiceImplTest {
     @Mock
-    ExamenRepository repository;
+    ExamenRepositoryImpl repository;
 
     @Mock
-    PreguntaRepository preguntaRepository;
+    PreguntaRepositoryImpl preguntaRepository;
 
     @Captor
     ArgumentCaptor<Long> captor;
@@ -34,8 +37,8 @@ class ExamenServiceImplTest {
     @BeforeEach
     void setUp() {
 //        MockitoAnnotations.openMocks(this); //esta es una forma para los mock por injeccion de dependencia, las linas siguientes no aplican ya.
-//        repository = mock(ExamenRepository.class);
-//        preguntaRepository = mock(PreguntaRepository.class);
+//        repository = mock(ExamenRepositoryImpl.class);
+//        preguntaRepository = mock(PreguntaRepositoryImpl.class);
 //        service = new ExamenServiceImpl(repository, preguntaRepository);
     }
 
@@ -99,8 +102,7 @@ class ExamenServiceImplTest {
 
     //desarrollo impulsado a comportamiento (given, when, then)
     @Test
-    void testGuardarExamen()
-    {
+    void testGuardarExamen() {
         //Given -> son las precondiciones de nuestro entorno de prueba
         Examen newExamen = Datos.EXAMEN;
         newExamen.setPreguntas(Datos.PREGUNTAS);
@@ -134,7 +136,7 @@ class ExamenServiceImplTest {
         when(preguntaRepository.findPrguntasPorExamenId(isNull())).thenThrow(IllegalArgumentException.class);
 
         Exception exception = assertThrows(IllegalArgumentException.class, () -> {
-           service.findExamenPorNombreConPreguntas("Matematicas");
+            service.findExamenPorNombreConPreguntas("Matematicas");
         });
 
         assertEquals(IllegalArgumentException.class, exception.getClass());
@@ -197,7 +199,7 @@ class ExamenServiceImplTest {
     }
 
     @Test
-    void testArgumentCaptor(){
+    void testArgumentCaptor() {
         when(repository.findAll()).thenReturn(Datos.EXAMENES);
 //        when(preguntaRepository.findPrguntasPorExamenId(anyLong())).thenReturn(Datos.PREGUNTAS);
 
@@ -208,4 +210,166 @@ class ExamenServiceImplTest {
 
         assertEquals(5L, captor.getValue());
     }
+
+    @Test
+    void testDoThrow() {
+        Examen examen = Datos.EXAMEN;
+        examen.setPreguntas(Datos.PREGUNTAS);
+        doThrow(IllegalArgumentException.class).when(preguntaRepository).guardarVarias(anyList());
+
+        assertThrows(IllegalArgumentException.class, () -> {
+            service.guardar(examen);
+        });
+    }
+
+    @Test
+    void testDoAnswer() {
+        when(repository.findAll()).thenReturn(Datos.EXAMENES);
+        doAnswer(invocation -> {
+            Long id = invocation.getArgument(0);
+            return id == 5L ? Datos.PREGUNTAS : Collections.emptyList();
+        }).when(preguntaRepository).findPrguntasPorExamenId(anyLong());
+
+        Examen examen = service.findExamenPorNombreConPreguntas("Matematicas");
+
+        assertEquals(5, examen.getPreguntas().size());
+        assertTrue(examen.getPreguntas().contains("geometría"));
+        assertEquals(5L, examen.getId());
+        assertEquals("Matematicas", examen.getNombre());
+
+        verify(preguntaRepository).findPrguntasPorExamenId(anyLong());
+
+    }
+
+    @Test
+    void testDoAnswerGuardarExamen() {
+        Examen newExamen = Datos.EXAMEN;
+        newExamen.setPreguntas(Datos.PREGUNTAS);
+        doAnswer(new Answer<Examen>() {
+            Long secuencia = 8L;
+
+            @Override
+            public Examen answer(InvocationOnMock invocationOnMock) throws Throwable {
+                Examen examen = invocationOnMock.getArgument(0);
+                examen.setId(secuencia++);
+                return examen;
+            }
+        }).when(repository).guardar(any(Examen.class));
+        //When, cuando se ejecuta un método del service que queremo probar sería el cuando.
+        Examen examen = service.guardar(newExamen);
+
+        //then, cuando validamos las respuestas de nuestro servicio probado.
+        assertNotNull(examen.getId());
+        assertEquals(8L, examen.getId());
+        assertEquals("Fisica", examen.getNombre());
+
+        verify(repository).guardar(any(Examen.class));
+        verify(preguntaRepository).guardarVarias(anyList());
+    }
+
+    @Test
+    void testDoCallRealMethod() {
+        when(repository.findAll()).thenReturn(Datos.EXAMENES);
+//        when(preguntaRepository.findPrguntasPorExamenId(anyLong())).thenReturn(Datos.PREGUNTAS);
+        doCallRealMethod().when(preguntaRepository).findPrguntasPorExamenId(anyLong());
+
+        Examen examen = service.findExamenPorNombreConPreguntas("Matematicas");
+
+        assertEquals(5L, examen.getId());
+        assertEquals("Matematicas", examen.getNombre());
+    }
+
+    @Test
+    void testSpy() {
+        ExamenRepository examenRepository = spy(ExamenRepositoryImpl.class);
+        PreguntaRepository preguntaRepository1 = spy(PreguntaRepositoryImpl.class);
+        ExamenService examenService = new ExamenServiceImpl(examenRepository, preguntaRepository1);
+
+        List<String> preguntas = Arrays.asList("arimetica");
+
+//        when(preguntaRepository1.findPrguntasPorExamenId(anyLong())).thenReturn(preguntas);
+        doReturn(preguntas).when(preguntaRepository1).findPrguntasPorExamenId(anyLong());
+
+        Examen examen = examenService.findExamenPorNombreConPreguntas("Matematicas");
+
+        assertEquals(5, examen.getId());
+        assertEquals("Matematicas", examen.getNombre());
+        assertEquals(1, examen.getPreguntas().size());
+        assertTrue(examen.getPreguntas().contains("arimetica"));
+
+        verify(examenRepository).findAll();
+        verify(preguntaRepository1).findPrguntasPorExamenId(anyLong());
+    }
+
+    @Test
+    void testOrdenDeInvocaciones() {
+        when(repository.findAll()).thenReturn(Datos.EXAMENES);
+
+        service.findExamenPorNombreConPreguntas("Matematicas");
+        service.findExamenPorNombreConPreguntas("Lenguaje");
+
+        InOrder inOrder = inOrder(preguntaRepository);
+        inOrder.verify(preguntaRepository).findPrguntasPorExamenId(5L);
+        inOrder.verify(preguntaRepository).findPrguntasPorExamenId(6L);
+    }
+
+    @Test
+    void testOrdenDeInvocaciones2() {
+        when(repository.findAll()).thenReturn(Datos.EXAMENES);
+
+        service.findExamenPorNombreConPreguntas("Matematicas");
+        service.findExamenPorNombreConPreguntas("Lenguaje");
+
+        InOrder inOrder = inOrder(repository, preguntaRepository);
+        inOrder.verify(repository).findAll();
+        inOrder.verify(preguntaRepository).findPrguntasPorExamenId(5L);
+        inOrder.verify(repository).findAll();
+        inOrder.verify(preguntaRepository).findPrguntasPorExamenId(6L);
+    }
+
+    @Test
+    void testNumeroDeInvocaciones() {
+        when(repository.findAll()).thenReturn(Datos.EXAMENES);
+
+        service.findExamenPorNombreConPreguntas("Matematicas");
+
+        verify(preguntaRepository).findPrguntasPorExamenId(5L);
+        verify(preguntaRepository, times(1)).findPrguntasPorExamenId(5L);
+        verify(preguntaRepository, atLeast(1)).findPrguntasPorExamenId(5L);
+        verify(preguntaRepository, atLeastOnce()).findPrguntasPorExamenId(5L);
+        verify(preguntaRepository, atMost(1)).findPrguntasPorExamenId(5L);
+        verify(preguntaRepository, atMostOnce()).findPrguntasPorExamenId(5L);
+    }
+
+    @Test
+    void testNumeroDeInvocaciones2() {
+        when(repository.findAll()).thenReturn(Datos.EXAMENES);
+
+        service.findExamenPorNombreConPreguntas("Matematicas");
+
+//        verify(preguntaRepository).findPrguntasPorExamenId(5L);
+        verify(preguntaRepository, times(2)).findPrguntasPorExamenId(5L);
+        verify(preguntaRepository, atLeast(1)).findPrguntasPorExamenId(5L);
+        verify(preguntaRepository, atLeastOnce()).findPrguntasPorExamenId(5L);
+        verify(preguntaRepository, atMost(20)).findPrguntasPorExamenId(5L);
+//        verify(preguntaRepository, atMostOnce()).findPrguntasPorExamenId(5L);
+    }
+
+    @Test
+    void testNumeroDeInvocaciones3() {
+        when(repository.findAll()).thenReturn(Collections.emptyList());
+
+        service.findExamenPorNombreConPreguntas("Matematicas");
+        verifyNoInteractions(preguntaRepository);
+
+        verify(repository).findAll();
+        verify(repository, times(1)).findAll();
+        verify(repository, atLeast(1)).findAll();
+        verify(repository, atLeastOnce()).findAll();
+        verify(repository, atMost(10)).findAll();
+        verify(repository, atMostOnce()).findAll();
+
+    }
+
+
 }
