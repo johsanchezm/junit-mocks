@@ -6,9 +6,7 @@ import org.jsanchez.appmockito.ejemplos.repositories.PreguntaRepository;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
-import org.mockito.InjectMocks;
-import org.mockito.Mock;
-import org.mockito.MockitoAnnotations;
+import org.mockito.*;
 import org.mockito.invocation.InvocationOnMock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.mockito.stubbing.Answer;
@@ -26,6 +24,9 @@ class ExamenServiceImplTest {
 
     @Mock
     PreguntaRepository preguntaRepository;
+
+    @Captor
+    ArgumentCaptor<Long> captor;
 
     @InjectMocks //para usar esta anotación  se debe hacer sobre la calse implementada y no la intefaz
     ExamenServiceImpl service;
@@ -140,5 +141,71 @@ class ExamenServiceImplTest {
 
         verify(repository).findAll();
         verify(preguntaRepository).findPrguntasPorExamenId(isNull());
+    }
+
+    @Test
+    void testArgumentMatchers() {
+        when(repository.findAll()).thenReturn(Datos.EXAMENES);
+        when(preguntaRepository.findPrguntasPorExamenId(anyLong())).thenReturn(Datos.PREGUNTAS);
+
+        service.findExamenPorNombreConPreguntas("Matematicas");
+
+        verify(repository).findAll();
+//        verify(preguntaRepository).findPrguntasPorExamenId(argThat(arg -> arg != null && arg.equals(5L)));
+        verify(preguntaRepository).findPrguntasPorExamenId(argThat(arg -> arg != null && arg >= 5L));
+//        verify(preguntaRepository).findPrguntasPorExamenId(eq(5L));
+    }
+
+    @Test
+    void testArgumentMatchers2() {
+        when(repository.findAll()).thenReturn(Datos.EXAMENES);
+        when(preguntaRepository.findPrguntasPorExamenId(anyLong())).thenReturn(Datos.PREGUNTAS);
+
+        service.findExamenPorNombreConPreguntas("Matematicas");
+
+        verify(repository).findAll();
+        verify(preguntaRepository).findPrguntasPorExamenId(argThat(new MiArgsMatchers()));
+    }
+
+    @Test
+    void testArgumentMatchers3() {
+        when(repository.findAll()).thenReturn(Datos.EXAMENES);
+        when(preguntaRepository.findPrguntasPorExamenId(anyLong())).thenReturn(Datos.PREGUNTAS);
+
+        service.findExamenPorNombreConPreguntas("Matematicas");
+
+        verify(repository).findAll();
+        verify(preguntaRepository).findPrguntasPorExamenId(argThat((argument) -> argument != null && argument > 0));
+    }
+
+    public static class MiArgsMatchers implements ArgumentMatcher<Long> {
+
+        private Long argument;
+
+        @Override
+        public boolean matches(Long argument) {
+            this.argument = argument;
+            return argument != null && argument > 0;
+        }
+
+        @Override
+        public String toString() {
+            return "es para un mensaje personalizado de errpr" +
+                    " que imprime mockito en caso de que falle el test "
+                    + argument + " debe ser un entero positivo";
+        }
+    }
+
+    @Test
+    void testArgumentCaptor(){
+        when(repository.findAll()).thenReturn(Datos.EXAMENES);
+//        when(preguntaRepository.findPrguntasPorExamenId(anyLong())).thenReturn(Datos.PREGUNTAS);
+
+        service.findExamenPorNombreConPreguntas("Matematicas");
+
+//        ArgumentCaptor<Long> captor = ArgumentCaptor.forClass(Long.class);
+        verify(preguntaRepository).findPrguntasPorExamenId(captor.capture());
+
+        assertEquals(5L, captor.getValue());
     }
 }
